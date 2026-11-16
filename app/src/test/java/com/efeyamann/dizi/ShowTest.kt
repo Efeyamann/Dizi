@@ -58,7 +58,7 @@ class ShowTest {
         assertEquals(Status.DONE, all.status)
         assertNull(all.resumeAt)
         assertEquals(Status.WATCHING, all.toggleSeason(2).status)
-        assertEquals(Status.WATCHLIST, s.copy(status = Status.WATCHLIST).toggleSeason(1).toggleSeason(1).status)
+        assertEquals(Status.WATCHING, s.copy(status = Status.WATCHLIST).toggleSeason(1).status) // started watching
     }
 
     @Test fun doneButtonMarksAllSeasons() {
