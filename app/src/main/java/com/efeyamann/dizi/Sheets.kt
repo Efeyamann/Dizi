@@ -66,11 +66,11 @@ fun ShowSheet(
                     )
                     if (show.nextAir != null && show.nextAir >= today.toString()) {
                         Text(
-                            "Sıradaki: ${show.nextSeason}. sezon ${show.nextEpisode}. bölüm",
+                            "Sıradaki: ${show.nextSeason}. sezon ${show.nextEpisodeLabel()}",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(
-                            "${relativeDay(show.nextAir, today)} (${show.nextAir})",
+                            "${longDate(show.nextAir, today)} · ${relativeDay(show.nextAir, today)}",
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
                         )
                     }

@@ -22,13 +22,17 @@ data class Show(
     val ended: Boolean = false, // the show itself is over (TMDB: Ended/Canceled)
     val newSeason: Boolean = false, // badge until the user opens the show
     val watched: Set<Int> = emptySet(), // season numbers the user has watched
+    val nextTotal: Int = 0, // episodes in the next episode's season, 0 = unknown
 ) {
     /** First season not watched yet, or null when all known seasons are watched. */
     val resumeAt: Int? get() = (1..seasons).firstOrNull { it !in watched }
 
-    /** Ticks or unticks one season. All seasons watched means DONE; unticking one moves a DONE show back to WATCHING. */
+    /**
+     * Seasons are watched in order: tapping season n means "watched up to n"; tapping the last watched one steps back one.
+     * All seasons watched means DONE; stepping back moves a DONE show to WATCHING.
+     */
     fun toggleSeason(n: Int): Show {
-        val w = if (n in watched) watched - n else watched + n
+        val w = (1..if (n == watched.maxOrNull()) n - 1 else n).toSet()
         val all = seasons > 0 && (1..seasons).all { it in w }
         return copy(watched = w, status = when {
             all -> Status.DONE
@@ -45,7 +49,7 @@ data class Show(
         .put("seasons", seasons).put("nextAir", nextAir ?: JSONObject.NULL)
         .put("nextSeason", nextSeason).put("nextEpisode", nextEpisode).put("startNotified", startNotified)
         .put("status", status.name).put("ended", ended).put("newSeason", newSeason)
-        .put("watched", JSONArray(watched.sorted()))
+        .put("watched", JSONArray(watched.sorted())).put("nextTotal", nextTotal)
 
     companion object {
         fun fromJson(o: JSONObject) = Show(
@@ -55,6 +59,7 @@ data class Show(
             Status.entries.find { it.name == o.str("status") } ?: Status.WATCHING,
             o.optBoolean("ended"), o.optBoolean("newSeason"),
             o.optJSONArray("watched")?.let { a -> (0 until a.length()).map(a::getInt).toSet() }.orEmpty(),
+            o.optInt("nextTotal"),
         )
     }
 }
@@ -73,6 +78,17 @@ fun checkNews(old: Show, fresh: Show, today: String): Pair<String?, Show> {
         else -> null to stored
     }
 }
+
+/** "20 Kasım", with the year when it is not this year. */
+fun longDate(date: String, today: LocalDate): String {
+    val d = LocalDate.parse(date)
+    return d.format(DateTimeFormatter.ofPattern(if (d.year == today.year) "d MMMM" else "d MMMM yyyy", Locale.forLanguageTag("tr")))
+}
+
+/** "3/16. bölüm", or "3. bölüm" when the season length is unknown. */
+fun Show.nextEpisodeLabel(): String = (if (nextTotal > 0) "$nextEpisode/$nextTotal" else "$nextEpisode") + ". bölüm"
+
+fun withinWeek(date: String, today: LocalDate) = ChronoUnit.DAYS.between(today, LocalDate.parse(date)) in 0L..6L
 
 /** "Bugün", "Yarın", "3 gün sonra", then a short date. */
 fun relativeDay(date: String, today: LocalDate): String {

@@ -49,16 +49,36 @@ class ShowTest {
         assertEquals(3, stored.resumeAt)
     }
 
-    @Test fun seasonTicks() {
-        val s = Show(1, "A", null, 3)
-        val two = s.toggleSeason(1).toggleSeason(2)
-        assertEquals(Status.WATCHING, two.status)
-        assertEquals(3, two.resumeAt)
-        val all = two.toggleSeason(3)
+    @Test fun seasonTapMeansWatchedUpToIt() {
+        val s = Show(1, "A", null, 8)
+        val six = s.toggleSeason(6)
+        assertEquals((1..6).toSet(), six.watched)
+        assertEquals(Status.WATCHING, six.status)
+        assertEquals(7, six.resumeAt)
+        assertEquals((1..5).toSet(), six.toggleSeason(6).watched) // tapping the last one steps back
+        assertEquals((1..3).toSet(), six.toggleSeason(3).watched)
+        val all = six.toggleSeason(8)
         assertEquals(Status.DONE, all.status)
         assertNull(all.resumeAt)
-        assertEquals(Status.WATCHING, all.toggleSeason(2).status)
+        assertEquals(Status.WATCHING, all.toggleSeason(8).status)
         assertEquals(Status.WATCHING, s.copy(status = Status.WATCHLIST).toggleSeason(1).status) // started watching
+    }
+
+    @Test fun episodeLabelsAndDates() {
+        val today = LocalDate.parse("2026-11-17")
+        assertEquals("3/16. bölüm", Show(1, "A", null, 2, nextEpisode = 3, nextTotal = 16).nextEpisodeLabel())
+        assertEquals("3. bölüm", Show(1, "A", null, 2, nextEpisode = 3).nextEpisodeLabel())
+        assertEquals("20 Kasım", longDate("2026-11-20", today))
+        assertEquals("5 Şubat 2027", longDate("2027-02-05", today))
+        assertTrue(withinWeek("2026-11-23", today))
+        assertFalse(withinWeek("2026-11-24", today))
+    }
+
+    @Test fun tmdbNextSeasonEpisodeCount() {
+        val o = JSONObject("""{"id": 1, "name": "A", "original_name": "A", "poster_path": null, "number_of_seasons": 2, "status": "Returning Series",
+            "next_episode_to_air": {"air_date": "2026-11-20", "season_number": 2, "episode_number": 3},
+            "seasons": [{"id": 9, "season_number": 0, "episode_count": 4}, {"id": 10, "season_number": 1, "episode_count": 8}, {"id": 11, "season_number": 2, "episode_count": 16}]}""")
+        assertEquals(16, Tmdb.parseDetails(o).nextTotal)
     }
 
     @Test fun doneButtonMarksAllSeasons() {

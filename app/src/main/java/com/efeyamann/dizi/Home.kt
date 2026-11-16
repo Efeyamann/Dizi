@@ -209,14 +209,29 @@ fun Upcoming(shows: List<Show>, today: LocalDate, onClick: (Show) -> Unit) {
         Text("Yaklaşanlar", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(shows, key = { it.id }) { s ->
-                Column(Modifier.width(96.dp).clip(RoundedCornerShape(10.dp)).clickable { onClick(s) }) {
-                    Poster(s, Modifier.fillMaxWidth().aspectRatio(2f / 3f))
+                val date = s.nextAir!!
+                val relative = relativeDay(date, today)
+                Column(Modifier.width(112.dp).clip(RoundedCornerShape(10.dp)).clickable { onClick(s) }) {
+                    Box {
+                        Poster(s, Modifier.fillMaxWidth().aspectRatio(2f / 3f))
+                        // "Bugün", "Yarın", "3 gün sonra" for this week; later dates speak for themselves.
+                        if (withinWeek(date, today)) Text(
+                            relative,
+                            Modifier.padding(6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
                     Text(
-                        relativeDay(s.nextAir!!, today), Modifier.padding(top = 6.dp),
+                        longDate(date, today), Modifier.padding(top = 6.dp),
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1,
                     )
                     Text(
-                        "S${s.nextSeason} · B${s.nextEpisode}",
+                        s.nextEpisodeLabel(), maxLines = 1,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(
+                        "${s.nextSeason}. sezon",
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
