@@ -7,23 +7,33 @@ import java.net.URLEncoder
 object Serializd {
     private const val API = "https://serializd.onrender.com/api/user"
 
-    /** Watched + currently watching shows of a public profile. Seasons stay 0 until TMDB fills them in. */
-    fun watched(user: String): List<Show> =
-        listOf("watchedpage_v2", "currently_watching_page").flatMap { pages(user, it) }.distinctBy { it.id }
+    // Order is the priority when a show is in several lists: watching > watched > watchlist. Dropped shows are skipped.
+    private val LISTS = listOf("currently_watching_page", "paused_shows_page", "watchedpage_v2", "watchlistpage_v2")
 
-    private fun pages(user: String, kind: String): List<Show> {
+    /** Shows of a public profile with their status. Seasons and posters stay empty until TMDB fills them in. */
+    fun fetch(user: String): List<Show> = LISTS.flatMap { pages(user, it) }.distinctBy { it.id }
+
+    private fun pages(user: String, list: String): List<Show> {
         val out = mutableListOf<Show>()
         var page = 1
         do {
             val o = getJson(
-                "$API/${URLEncoder.encode(user, "UTF-8")}/$kind/$page?sort_by=date_added_desc",
+                "$API/${URLEncoder.encode(user, "UTF-8")}/$list/$page?sort_by=date_added_desc",
                 "X-Requested-With" to "serializd_vercel",
             )
-            out += parseItems(o)
+            out += parseItems(o, list)
         } while (++page <= o.optInt("totalPages"))
         return out
     }
 
-    fun parseItems(o: JSONObject): List<Show> =
-        o.list("items") { Show(it.getInt("showId"), it.getString("showName"), null, 0) }
+    fun parseItems(o: JSONObject, list: String): List<Show> = o.list("items") {
+        val status = when (list) {
+            "watchlistpage_v2" -> Status.WATCHLIST
+            // "Watched" lists every show with at least one watched season; it is finished only if all are.
+            "watchedpage_v2" ->
+                if ((it.optJSONArray("seasonIds")?.length() ?: 0) >= it.optInt("numSeasons", 1)) Status.DONE else Status.WATCHING
+            else -> Status.WATCHING
+        }
+        Show(it.getInt("showId"), it.getString("showName"), null, 0, status = status)
+    }
 }

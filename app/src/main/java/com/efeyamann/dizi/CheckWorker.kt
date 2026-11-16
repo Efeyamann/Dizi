@@ -45,7 +45,10 @@ class CheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         ) return
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel("seasons", "Yeni sezonlar", NotificationManager.IMPORTANCE_DEFAULT))
-        val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(
+            ctx, show.id, Intent(ctx, MainActivity::class.java).putExtra("show", show.id),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         nm.notify(
             show.id,
             Notification.Builder(ctx, "seasons").setSmallIcon(R.drawable.ic_notify)
