@@ -1,8 +1,12 @@
 package com.efeyamann.dizi
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -38,11 +42,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ShowSheet(show: Show, today: LocalDate, onStatus: (Status) -> Unit, onDelete: () -> Unit, onClose: () -> Unit) {
+fun ShowSheet(
+    show: Show, today: LocalDate,
+    onStatus: (Status) -> Unit, onToggleSeason: (Int) -> Unit, onDelete: () -> Unit, onClose: () -> Unit,
+) {
     ModalBottomSheet(onDismissRequest = onClose) {
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Poster(show, Modifier.size(100.dp, 150.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -69,6 +79,25 @@ fun ShowSheet(show: Show, today: LocalDate, onStatus: (Status) -> Unit, onDelete
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TABS.forEach { (st, label) ->
                     FilterChip(selected = show.status == st, onClick = { onStatus(st) }, label = { Text(label) })
+                }
+            }
+            if (show.seasons > 0) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val resume = show.resumeAt
+                Text(
+                    when {
+                        resume == null -> "İzlediğin sezonlar · hepsi izlendi"
+                        show.watched.isEmpty() -> "İzlediğin sezonlar"
+                        else -> "İzlediğin sezonlar · kaldığın yer: $resume. sezon"
+                    },
+                    style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    (1..show.seasons).forEach { n ->
+                        FilterChip(
+                            selected = n in show.watched, onClick = { onToggleSeason(n) },
+                            label = { Text("$n. sezon") },
+                        )
+                    }
                 }
             }
             TextButton(onClick = onDelete) { Text("Listeden sil", color = MaterialTheme.colorScheme.error) }
@@ -153,8 +182,14 @@ fun SettingsDialog(store: Store, onImported: (List<Show>) -> Unit, onTest: () ->
                         scope.job({ status = it }, "İçe aktarılıyor… (sunucu uyanırken 1 dk sürebilir)") {
                             val imported = withContext(Dispatchers.IO) {
                                 // Prefer fresh TMDB data; keep the Serializd entry if TMDB fails for one show.
-                                Serializd.fetch(store.user).map { s ->
-                                    runCatching { Tmdb.details(store.token, s.id).copy(status = s.status) }.getOrDefault(s)
+                                Serializd.fetch(store.user).map { (s, seasonIds) ->
+                                    runCatching {
+                                        val o = Tmdb.detailsJson(store.token, s.id)
+                                        val numbers = Tmdb.seasonNumbers(o)
+                                        val d = Tmdb.parseDetails(o)
+                                        val watched = seasonIds.mapNotNull { numbers[it] }.toSet()
+                                        d.copy(status = s.status, watched = if (s.status == Status.DONE) watched + (1..d.seasons) else watched)
+                                    }.getOrDefault(s)
                                 }
                             }
                             onImported(imported)

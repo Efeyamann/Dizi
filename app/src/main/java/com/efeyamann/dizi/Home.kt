@@ -111,7 +111,8 @@ fun App(store: Store, openId: Int) {
     val status = TABS[tab].first
     val list = shows.filter { it.status == status }
     val today = LocalDate.now()
-    val upcoming = list.filter { (it.nextAir ?: "") >= today.toString() }.sortedBy { it.nextAir }
+    // From every tab: a finished show with an announced season must still show up here.
+    val upcoming = shows.filter { (it.nextAir ?: "") >= today.toString() }.sortedBy { it.nextAir }
 
     Scaffold(
         topBar = {
@@ -159,7 +160,8 @@ fun App(store: Store, openId: Int) {
         LaunchedEffect(show.id) { if (show.newSeason) update(show.id) { it.copy(newSeason = false) } }
         ShowSheet(
             show, today,
-            onStatus = { st -> update(show.id) { it.copy(status = st) } },
+            onStatus = { st -> update(show.id) { if (st == Status.DONE) it.markDone() else it.copy(status = st) } },
+            onToggleSeason = { n -> update(show.id) { it.toggleSeason(n) } },
             onDelete = {
                 selected = 0
                 save(shows.filter { it.id != show.id })
@@ -181,9 +183,12 @@ fun App(store: Store, openId: Int) {
         "settings" -> SettingsDialog(
             store,
             onImported = { new ->
-                // Shows already in the list only take their Serializd status; the rest are added.
+                // Shows already in the list take their Serializd status and watched seasons; the rest are added.
                 val byId = new.associateBy { it.id }
-                save(shows.map { s -> byId[s.id]?.let { s.copy(status = it.status) } ?: s } + new.filter { n -> shows.none { it.id == n.id } })
+                save(
+                    shows.map { s -> byId[s.id]?.let { s.copy(status = it.status, watched = it.watched.ifEmpty { s.watched }) } ?: s } +
+                        new.filter { n -> shows.none { it.id == n.id } },
+                )
             },
             onTest = {
                 // Pretend we knew one season less, so the next check announces a "new" season.
@@ -237,10 +242,17 @@ fun PosterCard(show: Show, onClick: () -> Unit) {
             style = MaterialTheme.typography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
         Text(
-            listOfNotNull(if (show.seasons > 0) "${show.seasons} sezon" else null, if (show.ended) "Final" else null).joinToString(" · "),
+            listOfNotNull(progress(show), if (show.ended) "Final" else null).joinToString(" · "),
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/** "2/4 sezon" while seasons are partly watched, otherwise the season count. */
+fun progress(show: Show): String? = when {
+    show.seasons <= 0 -> null
+    show.watched.isNotEmpty() && show.resumeAt != null -> "${show.watched.count { it <= show.seasons }}/${show.seasons} sezon"
+    else -> "${show.seasons} sezon"
 }
 
 /** Poster image; while it loads or when there is none, the name on a plain tile. */

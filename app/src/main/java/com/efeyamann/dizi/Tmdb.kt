@@ -16,7 +16,14 @@ object Tmdb {
             Show(it.getInt("id"), title(it) + year, it.str("poster_path"), 0)
         }
 
-    fun details(token: String, id: Int): Show = parseDetails(get(token, "/tv/$id"))
+    fun details(token: String, id: Int): Show = parseDetails(detailsJson(token, id))
+
+    fun detailsJson(token: String, id: Int): JSONObject = get(token, "/tv/$id")
+
+    /** TMDB season id → season number, specials (season 0) left out. */
+    fun seasonNumbers(o: JSONObject): Map<Int, Int> =
+        o.optJSONArray("seasons")?.let { a -> (0 until a.length()).map(a::getJSONObject) }.orEmpty()
+            .filter { it.optInt("season_number") > 0 }.associate { it.getInt("id") to it.getInt("season_number") }
 
     fun parseDetails(o: JSONObject): Show {
         val next = o.optJSONObject("next_episode_to_air")

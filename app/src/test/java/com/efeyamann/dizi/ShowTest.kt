@@ -40,13 +40,35 @@ class ShowTest {
         assertNull(checkNews(base, base.copy(nextAir = "2026-11-17", nextSeason = 2, nextEpisode = 4), "2026-11-17").first)
     }
 
-    @Test fun newSeasonMovesFinishedShowBackToWatching() {
-        assertEquals(Status.WATCHING, checkNews(base.copy(status = Status.DONE), base.copy(seasons = 3), "2026-11-17").second.status)
-        assertEquals(Status.WATCHLIST, checkNews(base.copy(status = Status.WATCHLIST), base.copy(seasons = 3), "2026-11-17").second.status)
+    @Test fun newSeasonKeepsFinishedShowInDoneWithBadge() {
+        val old = base.copy(status = Status.DONE, watched = setOf(1, 2))
+        val (_, stored) = checkNews(old, base.copy(seasons = 3, nextAir = "2027-02-10", nextSeason = 3, nextEpisode = 1), "2026-11-17")
+        assertEquals(Status.DONE, stored.status)
+        assertEquals(setOf(1, 2), stored.watched)
+        assertTrue(stored.newSeason)
+        assertEquals(3, stored.resumeAt)
+    }
+
+    @Test fun seasonTicks() {
+        val s = Show(1, "A", null, 3)
+        val two = s.toggleSeason(1).toggleSeason(2)
+        assertEquals(Status.WATCHING, two.status)
+        assertEquals(3, two.resumeAt)
+        val all = two.toggleSeason(3)
+        assertEquals(Status.DONE, all.status)
+        assertNull(all.resumeAt)
+        assertEquals(Status.WATCHING, all.toggleSeason(2).status)
+        assertEquals(Status.WATCHLIST, s.copy(status = Status.WATCHLIST).toggleSeason(1).toggleSeason(1).status)
+    }
+
+    @Test fun doneButtonMarksAllSeasons() {
+        val s = Show(1, "A", null, 3, watched = setOf(1)).markDone()
+        assertEquals(Status.DONE, s.status)
+        assertEquals(setOf(1, 2, 3), s.watched)
     }
 
     @Test fun jsonRoundTrip() {
-        val s = Show(5, "A", null, 1, null, 0, 0, 2, Status.DONE, ended = true, newSeason = true)
+        val s = Show(5, "A", null, 1, null, 0, 0, 2, Status.DONE, ended = true, newSeason = true, watched = setOf(1))
         assertEquals(s, Show.fromJson(JSONObject(s.toJson().toString())))
     }
 
@@ -71,13 +93,21 @@ class ShowTest {
             {"showId": 93405, "seasonIds": [1, 2, 3], "showName": "Squid Game", "numSeasons": 3},
             {"showId": 97175, "seasonIds": [139705], "showName": "Fate: The Winx Saga", "numSeasons": 2}], "totalPages": 1}""")
         assertEquals(
-            listOf(Show(93405, "Squid Game", null, 0, status = Status.DONE), Show(97175, "Fate: The Winx Saga", null, 0)),
+            listOf(
+                Show(93405, "Squid Game", null, 0, status = Status.DONE) to listOf(1, 2, 3),
+                Show(97175, "Fate: The Winx Saga", null, 0) to listOf(139705),
+            ),
             Serializd.parseItems(watched, "watchedpage_v2"),
         )
         val plain = JSONObject("""{"items": [{"showId": 85552, "dateAdded": "2024-05-15T05:45:44Z", "showName": "Euphoria", "bannerImage": "/a.jpg"}], "totalItems": 1, "totalPages": 1}""")
-        assertEquals(Status.WATCHING, Serializd.parseItems(plain, "currently_watching_page").single().status)
-        assertEquals(Status.WATCHING, Serializd.parseItems(plain, "paused_shows_page").single().status)
-        assertEquals(Status.WATCHLIST, Serializd.parseItems(plain, "watchlistpage_v2").single().status)
+        assertEquals(Status.WATCHING, Serializd.parseItems(plain, "currently_watching_page").single().first.status)
+        assertEquals(Status.WATCHING, Serializd.parseItems(plain, "paused_shows_page").single().first.status)
+        assertEquals(Status.WATCHLIST, Serializd.parseItems(plain, "watchlistpage_v2").single().first.status)
+    }
+
+    @Test fun tmdbSeasonNumbersSkipSpecials() {
+        val o = JSONObject("""{"seasons": [{"id": 10, "season_number": 0}, {"id": 11, "season_number": 1}, {"id": 12, "season_number": 2}]}""")
+        assertEquals(mapOf(11 to 1, 12 to 2), Tmdb.seasonNumbers(o))
     }
 
     @Test fun tmdbDetailsUseOriginalTitle() {
