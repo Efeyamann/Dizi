@@ -11,7 +11,7 @@ class Store(ctx: Context) {
         set(v) = p.edit().putString("shows", JSONArray(v.map { it.toJson() }).toString()).apply()
 
     var token: String
-        get() = p.getString("token", "")!!
+        get() = p.getString("token", null)?.takeIf { it.isNotBlank() } ?: BuildConfig.TMDB_TOKEN
         set(v) = p.edit().putString("token", v.trim()).apply()
 
     var user: String

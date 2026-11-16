@@ -13,6 +13,8 @@ android {
         targetSdk = 35
         versionCode = (System.getenv("DIZI_VERSION_CODE") ?: "1").toInt()
         versionName = "0.1.0"
+        // Personal TMDB read token from the CI secret; empty locally (then the Settings field is used).
+        buildConfigField("String", "TMDB_TOKEN", "\"${System.getenv("TMDB_TOKEN") ?: ""}\"")
     }
     signingConfigs {
         create("personal") {
@@ -37,7 +39,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
 }
 
 dependencies {

@@ -4,9 +4,8 @@ Kişisel dizi takip uygulaması (Android 8+). Yeni sezon duyurulunca ve yeni sez
 
 ## Kurulum
 1. GitHub Releases'tan son `Dizi.apk`'yı indirip kur.
-2. themoviedb.org'da ücretsiz hesap aç → Ayarlar → API → **API Read Access Token**'ı kopyala.
-3. Uygulamada Ayarlar (⚙) → token'ı yapıştır.
-4. İstersen Serializd kullanıcı adını yaz → **Serializd'den içe aktar** (izlenen + izlenmekte olan diziler, profil herkese açık olmalı).
+2. TMDB token CI secret'ından (`TMDB_TOKEN`) APK'ya gömülü; Ayarlar'daki alan yalnız değiştirmek için.
+3. İstersen Serializd kullanıcı adını yaz → **Serializd'den içe aktar** (izlenen + izlenmekte olan diziler, profil herkese açık olmalı).
 
 ## Nasıl çalışır
 - Liste telefonda saklanır. Dizi eklemek için `+`, silmek için satırı kaydır.
