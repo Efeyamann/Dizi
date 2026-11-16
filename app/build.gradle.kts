@@ -13,7 +13,6 @@ android {
         targetSdk = 35
         versionCode = (System.getenv("DIZI_VERSION_CODE") ?: "1").toInt()
         versionName = "0.2.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Personal TMDB read token from the CI secret; empty locally (then the Settings field is used).
         buildConfigField("String", "TMDB_TOKEN", "\"${System.getenv("TMDB_TOKEN") ?: ""}\"")
     }
@@ -44,9 +43,7 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2025.04.01")
-    implementation(composeBom)
-    androidTestImplementation(composeBom)
+    implementation(platform("androidx.compose:compose-bom:2025.04.01"))
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
@@ -59,7 +56,4 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.1.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }

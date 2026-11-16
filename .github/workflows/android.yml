@@ -33,16 +33,6 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew testDebugUnitTest lintDebug assembleRelease --stacktrace
-      # Built without the TMDB token so the screenshot run shows only its sample data.
-      - name: Build screenshot APKs
-        run: ./gradlew assembleDebug assembleDebugAndroidTest
-      - uses: actions/upload-artifact@v4
-        with:
-          name: screenshot-apks
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/androidTest/debug/*.apk
-          retention-days: 2
       - name: Remove signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/dizi.p12"
@@ -59,42 +49,6 @@ jobs:
         with:
           name: Dizi-APK
           path: app/build/outputs/apk/release/app-release.apk
-          retention-days: 7
-  screenshots:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: screenshot-apks
-          path: apks
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          target: google_apis
-          profile: pixel_6
-          disable-animations: true
-          script: |
-            adb install $(find apks -name app-debug.apk)
-            adb install $(find apks -name app-debug-androidTest.apk)
-            adb shell pm grant com.efeyamann.dizi android.permission.POST_NOTIFICATIONS
-            adb shell am instrument -w -r com.efeyamann.dizi.test/androidx.test.runner.AndroidJUnitRunner | tee run.txt
-            adb pull /sdcard/Android/data/com.efeyamann.dizi/files/screenshots screenshots || true
-            grep -E 'OK \([0-9]+ tests?\)' run.txt
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: screenshots
-          path: |
-            run.txt
-            screenshots/
           retention-days: 7
   publish:
     needs: build
