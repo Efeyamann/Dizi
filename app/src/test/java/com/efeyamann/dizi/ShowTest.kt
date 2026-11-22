@@ -139,4 +139,20 @@ class ShowTest {
         val o = JSONObject("""{"id": 93405, "name": "Squid Game", "original_name": "오징어 게임", "poster_path": "/p.jpg", "number_of_seasons": 3, "status": "Returning Series", "next_episode_to_air": {"air_date": "2027-01-05", "season_number": 4, "episode_number": 1}}""")
         assertEquals(Show(93405, "Squid Game", "/p.jpg", 3, "2027-01-05", 4, 1), Tmdb.parseDetails(o))
     }
+
+    @Test fun tmdbAnimeSeasonsFromEpisodeGroup() {
+        // Jujutsu Kaisen shape: one TMDB season of 59 episodes; the group splits it, specials first.
+        val o = JSONObject("""{"id": 95479, "name": "JJK", "original_name": "JJK", "poster_path": null, "number_of_seasons": 1, "status": "Returning Series",
+            "next_episode_to_air": {"air_date": "2026-01-15", "season_number": 1, "episode_number": 50}}""")
+        fun eps(r: IntRange, season: Int = 1) = r.joinToString(",") { """{"season_number": $season, "episode_number": $it}""" }
+        val group = JSONObject("""{"groups": [
+            {"order": 0, "episodes": [${eps(1..5, 0)}]},
+            {"order": 2, "episodes": [${eps(25..47)}]},
+            {"order": 1, "episodes": [${eps(1..24)}]},
+            {"order": 3, "episodes": [${eps(48..59)}]}]}""")
+        assertEquals(Show(95479, "JJK", null, 3, "2026-01-15", 3, 3, nextTotal = 12), Tmdb.parseDetails(o, group))
+        // An episode the group does not list yet lands in the last season.
+        val later = JSONObject(o.toString()).put("next_episode_to_air", JSONObject("""{"air_date": "2026-03-01", "season_number": 1, "episode_number": 60}"""))
+        assertEquals(Show(95479, "JJK", null, 3, "2026-03-01", 3, 13), Tmdb.parseDetails(later, group))
+    }
 }

@@ -186,7 +186,7 @@ fun SettingsDialog(store: Store, onImported: (List<Show>) -> Unit, onTest: () ->
                                     runCatching {
                                         val o = Tmdb.detailsJson(store.token, s.id)
                                         val numbers = Tmdb.seasonNumbers(o)
-                                        val d = Tmdb.parseDetails(o)
+                                        val d = Tmdb.details(store.token, o)
                                         val watched = seasonIds.mapNotNull { numbers[it] }.toSet()
                                         d.copy(status = s.status, watched = if (s.status == Status.DONE) watched + (1..d.seasons) else watched)
                                     }.getOrDefault(s)
