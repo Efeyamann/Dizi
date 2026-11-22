@@ -65,6 +65,9 @@ import androidx.work.WorkManager
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.material3.TextButton
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 
@@ -105,6 +108,9 @@ fun App(store: Store, openId: Int) {
             ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) askNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
+    var updateUrl by remember { mutableStateOf<String?>(null) }
+    var updating by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { updateUrl = withContext(Dispatchers.IO) { runCatching { Update.newer() }.getOrNull() } }
     // The daily worker may have changed the list while the app was in the background.
     LifecycleResumeEffect(Unit) { shows = store.shows; onPauseOrDispose {} }
 
@@ -118,7 +124,20 @@ fun App(store: Store, openId: Int) {
         topBar = {
             TopAppBar(
                 title = { Text("Dizi", fontWeight = FontWeight.Bold) },
-                actions = { IconButton(onClick = { dialog = "settings" }) { Icon(Icons.Default.Settings, "Ayarlar") } },
+                actions = {
+                    updateUrl?.let { url ->
+                        TextButton(enabled = !updating, onClick = {
+                            scope.launch {
+                                updating = true
+                                runCatching { withContext(Dispatchers.IO) { Update.download(ctx, url) } }
+                                    .onSuccess { Update.install(ctx, it) }
+                                    .onFailure { snackbar.showSnackbar("Güncelleme indirilemedi") }
+                                updating = false
+                            }
+                        }) { Text(if (updating) "İndiriliyor…" else "Güncelle") }
+                    }
+                    IconButton(onClick = { dialog = "settings" }) { Icon(Icons.Default.Settings, "Ayarlar") }
+                },
             )
         },
         floatingActionButton = {
