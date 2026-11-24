@@ -15,13 +15,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -114,11 +111,12 @@ fun App(store: Store, openId: Int) {
     // The daily worker may have changed the list while the app was in the background.
     LifecycleResumeEffect(Unit) { shows = store.shows; onPauseOrDispose {} }
 
-    val status = TABS[tab].first
-    val list = shows.filter { it.status == status }
     val today = LocalDate.now()
     // From every tab: a finished show with an announced season must still show up here.
     val upcoming = shows.filter { (it.nextAir ?: "") >= today.toString() }.sortedBy { it.nextAir }
+    val onUpcoming = tab == TABS.size // last tab, after the status tabs
+    val status = TABS.getOrNull(tab)?.first ?: Status.WATCHLIST // where + adds from the upcoming tab
+    val list = if (onUpcoming) upcoming else shows.filter { it.status == status }
 
     Scaffold(
         topBar = {
@@ -150,6 +148,7 @@ fun App(store: Store, openId: Int) {
                 TABS.forEachIndexed { i, (st, label) ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text("$label  ${shows.count { it.status == st }}") })
                 }
+                Tab(selected = onUpcoming, onClick = { tab = TABS.size }, text = { Text("Yakında  ${upcoming.size}") })
             }
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = { checkNow() }, modifier = Modifier.fillMaxSize()) {
                 LazyVerticalGrid(
@@ -158,18 +157,18 @@ fun App(store: Store, openId: Int) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    if (upcoming.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                        Upcoming(upcoming, today) { selected = it.id }
-                    }
                     if (list.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
                             if (shows.isEmpty()) "Liste boş. + ile dizi ekle ya da Ayarlar'dan Serializd'i içe aktar."
+                            else if (onUpcoming) "Tarihi açıklanmış yeni bölüm yok."
                             else "Bu sekmede dizi yok.",
                             Modifier.fillMaxWidth().padding(32.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
                         )
                     }
-                    items(list, key = { it.id }) { show -> PosterCard(show) { selected = show.id } }
+                    items(list, key = { it.id }) { show ->
+                        if (onUpcoming) UpcomingCard(show, today) { selected = show.id } else PosterCard(show) { selected = show.id }
+                    }
                 }
             }
         }
@@ -195,7 +194,7 @@ fun App(store: Store, openId: Int) {
 
     when (dialog) {
         "search" -> SearchDialog(
-            store, TABS[tab].second,
+            store, TABS.first { it.first == status }.second,
             onAdd = { s -> save(listOf(s.copy(status = status)) + shows.filter { it.id != s.id }) },
             onClose = { dialog = "" },
         )
@@ -221,41 +220,34 @@ fun App(store: Store, openId: Int) {
     }
 }
 
-/** Shows of the current tab with a dated next episode, soonest first. */
+/** A show with a dated next episode, for the upcoming tab. */
 @Composable
-fun Upcoming(shows: List<Show>, today: LocalDate, onClick: (Show) -> Unit) {
-    Column {
-        Text("Yaklaşanlar", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(shows, key = { it.id }) { s ->
-                val date = s.nextAir!!
-                val relative = relativeDay(date, today)
-                Column(Modifier.width(112.dp).clip(RoundedCornerShape(10.dp)).clickable { onClick(s) }) {
-                    Box {
-                        Poster(s, Modifier.fillMaxWidth().aspectRatio(2f / 3f))
-                        // "Bugün", "Yarın", "3 gün sonra" for this week; later dates speak for themselves.
-                        if (withinWeek(date, today)) Text(
-                            relative,
-                            Modifier.padding(6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
-                    Text(
-                        longDate(date, today), Modifier.padding(top = 6.dp),
-                        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1,
-                    )
-                    Text(
-                        s.nextEpisodeLabel(), maxLines = 1,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                    Text(
-                        "${s.nextSeason}. sezon",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+fun UpcomingCard(s: Show, today: LocalDate, onClick: (Show) -> Unit) {
+    val date = s.nextAir!!
+    val relative = relativeDay(date, today)
+    Column(Modifier.clip(RoundedCornerShape(10.dp)).clickable { onClick(s) }) {
+        Box {
+            Poster(s, Modifier.fillMaxWidth().aspectRatio(2f / 3f))
+            // "Bugün", "Yarın", "3 gün sonra" for this week; later dates speak for themselves.
+            if (withinWeek(date, today)) Text(
+                relative,
+                Modifier.padding(6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary,
+            )
         }
+        Text(
+            longDate(date, today), Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1,
+        )
+        Text(
+            s.nextEpisodeLabel(), maxLines = 1,
+            style = MaterialTheme.typography.labelMedium,
+        )
+        Text(
+            "${s.nextSeason}. sezon",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
